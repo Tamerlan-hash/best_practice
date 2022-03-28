@@ -1,0 +1,4 @@
+POSTGRES_HOST=admin_service_db
+POSTGRES_DB=yourbandy_admin_service_db
+POSTGRES_USER=yourbandy_user
+POSTGRES_PASSWORD=F=$4Y7L357Ugy$pkULtnSJ_W-wPZ*=#G

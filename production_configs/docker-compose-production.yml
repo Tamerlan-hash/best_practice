@@ -1,0 +1,121 @@
+version: "3.3"
+
+services:
+  nginx:
+    image: nginx:latest
+    restart: unless-stopped
+    depends_on:
+      - accounts_db
+      - accounts_service
+      - contents_db
+      - contents_service
+    networks:
+      - lognet
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+      - static_value:/var/html/static/
+      - media_value:/var/html/media/
+    command: '/bin/sh -c ''while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'''
+
+  certbot:
+    image: certbot/certbot
+    restart: unless-stopped
+    networks:
+      - lognet
+    volumes:
+      - ./data/certbot/conf:/etc/letsencrypt
+      - ./data/certbot/www:/var/www/certbot
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+
+  accounts_db:
+    image: postgres:13.4
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresqlaccounts/data/
+    environment:
+      - POSTGRES_HOST=accounts_db
+      - POSTGRES_USER=yourbandy_user
+      - POSTGRES_PASSWORD=Or&Rlpt8
+      - POSTGRES_DB=yourbandy_accounts
+    networks:
+      - lognet
+
+  accounts_service:
+    image: ghcr.io/yourbandy-com/yourbandy_accounts:main
+    restart: always
+    ports:
+      - "1000:1000"
+    depends_on:
+      - accounts_db
+    networks:
+      - lognet
+
+  contents_db:
+    image: postgres:13.4
+    restart: always
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresqlcontents/data/
+    environment:
+      - POSTGRES_HOST=contents_db
+      - POSTGRES_USER=yourbandy_user
+      - POSTGRES_PASSWORD=Or&Rlpt8
+      - POSTGRES_DB=yourbandy_contents
+    networks:
+      - lognet
+
+  contents_service:
+    image: ghcr.io/yourbandy-com/yourbandy_contents:main
+    restart: always
+    ports:
+      - "2000:2000"
+    depends_on:
+      - contents_db
+    networks:
+      - lognet
+
+
+#  rabbitmq:
+#    image: rabbitmq:3.8
+#    environment:
+#      - RABBITMQ_DEFAULT_USER=admin
+#      - RABBITMQ_DEFAULT_PASS=mypass
+#    networks:
+#      - lognet
+#    ports:
+#      - "5672:5672"
+#    restart: on-failure
+#
+  redis:
+    image: "redis:6.0-alpine"
+    volumes:
+      - ./redis/data:/data
+      - ./redis/redis.conf:/usr/local/etc/redis/redis.conf
+    ports:
+      - "6379:6379"
+    networks:
+      - lognet
+
+    restart: on-failure
+
+volumes:
+#    rabbitmq_data:
+#      driver: local
+  postgres_data:
+  redis_data:
+  static_value:
+  media_value:
+#    esdata:
+#      driver: local
+
+networks:
+  lognet:
+    driver: bridge

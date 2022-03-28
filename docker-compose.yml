@@ -1,0 +1,169 @@
+version: "3.7"
+
+services:
+  middleware_service:
+    build: middleware_service
+    restart: always
+    env_file:
+      - .envs/.auth_secrets_env
+    ports:
+      - "1000:1000"
+    networks:
+      - lognet
+
+  admin_service_db:
+    image: postgres:13.4
+    restart: always
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql_admin_service/data/
+    env_file:
+      - .envs/.admin_service_db_env
+    networks:
+      - lognet
+
+  admin_service:
+    build: admin_service
+    restart: always
+    depends_on:
+      - admin_service_db
+    env_file:
+      - .envs/.auth_secrets_env
+      - .envs/.admin_service_db_env
+    ports:
+      - "2000:2000"
+    networks:
+      - lognet
+
+  account_service_db:
+    image: postgres:13.4
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql_account_service/data/
+    env_file:
+      - .envs/.account_service_db_env
+    networks:
+      - lognet
+
+  account_service:
+    build: account_service
+    restart: always
+    env_file:
+      - .envs/.auth_secrets_env
+      - .envs/.account_service_db_env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - account_service_db
+    networks:
+      - lognet
+
+  content_service_db:
+    image: postgres:13.4
+    restart: always
+    ports:
+      - "5434:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql_account_service/data/
+    env_file:
+      - .envs/.content_service_db_env
+    networks:
+      - lognet
+
+  content_service:
+    build: content_service
+    restart: always
+    env_file:
+      - .envs/.auth_secrets_env
+      - .envs/.content_service_db_env
+    ports:
+      - "4000:4000"
+    depends_on:
+      - content_service_db
+    networks:
+      - lognet
+
+  phone_service:
+    build: phone_service
+    restart: always
+    env_file:
+      - .envs/.auth_secrets_env
+      - .envs/.rabbitmq_env
+      - .envs/.redis_env
+    ports:
+      - "5000:5000"
+    depends_on:
+      - rabbitmq
+      - redis
+    networks:
+      - lognet
+
+  celery_worker_phone_service:
+    build: phone_service
+    restart: always
+    env_file:
+      - .envs/.auth_secrets_env
+      - .envs/.rabbitmq_env
+      - .envs/.redis_env
+    depends_on:
+      - rabbitmq
+      - redis
+    networks:
+      - lognet
+#    command: "celery -A app.settings.celery_connection.worker worker -P celery_pool_asyncio:TaskPool -l info -Q queue2 --concurrency=5 -n worker2@%h "
+    command: "celery -A app.settings.celery_connection.worker worker"
+
+  flower:
+    build: phone_service
+    restart: always
+    ports:
+      - "5555:5555"
+    env_file:
+      - .envs/.auth_secrets_env
+      - .envs/.rabbitmq_env
+      - .envs/.redis_env
+    depends_on:
+      - rabbitmq
+      - redis
+    networks:
+      - lognet
+    command: "celery -A app.settings.celery_connection.worker flower --port=5555"
+
+  rabbitmq:
+    image: rabbitmq:latest
+    hostname: yourbandy_rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    env_file:
+      - .envs/.rabbitmq_env
+    networks:
+      - lognet
+
+  redis:
+    image: "redis:6.0-alpine"
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - lognet
+    restart: on-failure
+
+volumes:
+  rabbitmq_data:
+    driver: local
+  redis_data:
+    driver: local
+  postgres_data:
+  static_value:
+  media_value:
+#    esdata:
+#      driver: local
+
+networks:
+  lognet:
+    driver: bridge
